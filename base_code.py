@@ -1,148 +1,134 @@
 import abc
+from typing import Optional
 
 
-class Employee(abc.ABC):
+class PaymentCalculator(abc.ABC):
+    """Represents how the employee is paid"""
+
     @abc.abstractmethod
-    def compute_pay(self) -> float:
+    def get_payment(self) -> float:
+        """gets how much the employee is paid"""
         pass
 
 
-class HourlyEmployee(Employee):
-    """Employee Paid by the hour + commission"""
+class CommissionCalculator(abc.ABC):
+    """Represents the commission payment of the employee"""
 
-    pay_rate: float = 0
-    hours_worked: int = 0
-
-    def __init__(
-        self,
-        pay_rate: float = 0,
-        hours_worked: int = 0,
-    ):
-        self.pay_rate = pay_rate
-        self.hours_worked = hours_worked
-
-    def compute_pay(self) -> float:
-        """Return payrate * hours worked + commission_count * pay_per_commission"""
-        return self.pay_rate * self.hours_worked
+    @abc.abstractmethod
+    def get_payment(self) -> float:
+        """gets how much commission is added to the pay"""
+        pass
 
 
-class HourlyCommissionedEmployee(HourlyEmployee):
-    pay_per_commission: float = 10
-    commission_count: int = 0
-
-    def __init__(
-        self,
-        pay_rate: float = 0,
-        hours_worked: int = 0,
-        pay_per_commission: float = 10,
-        commission_count: int = 0,
-    ):
-        self.pay_rate = pay_rate
-        self.hours_worked = hours_worked
-        self.pay_per_commission = pay_per_commission
-        self.commission_count = commission_count
-
-    def compute_pay(self) -> float:
-        return super().compute_pay() + (self.commission_count * self.pay_per_commission)
-
-
-class SalaryEmployee(Employee):
-    """Employee Paid monthly"""
-
-    monthly_salary: float = 0
-    months_worked: int = 0
-
-    def __init__(
-        self,
-        monthly_salary: float = 0,
-        months_worked: int = 0,
-    ):
+class SalaryPaymentCalculator(PaymentCalculator):
+    def __init__(self, monthly_salary: float, months_worked: int):
         self.monthly_salary = monthly_salary
         self.months_worked = months_worked
 
-    def compute_pay(self) -> float:
-        """Return monthly_salary * months worked + commission_count * pay_per_commission"""
+    def get_payment(self) -> float:
         return self.monthly_salary * self.months_worked
 
 
-class SalaryCommissionedEmployee(SalaryEmployee):
-    pay_per_commission: float = 10
-    commission_count: int = 0
+class HourlyPaymentCalculator(PaymentCalculator):
+    def __init__(self, hourly_salary: float, hours_worked: int):
+        self.hourly_salary = hourly_salary
+        self.hours_worked = hours_worked
 
-    def __init__(
-        self,
-        monthly_salary: float = 0,
-        months_worked: int = 0,
-        pay_per_commission: float = 10,
-        commission_count: int = 0,
-    ):
-        self.monthly_salary = monthly_salary
-        self.months_worked = months_worked
+    def get_payment(self) -> float:
+        return self.hourly_salary * self.hours_worked
+
+
+class NoPaymentCalculator(PaymentCalculator):
+    def get_payment(self) -> float:
+        return 0
+
+
+class BaseCommissionCalculator(CommissionCalculator):
+    def __init__(self, pay_per_commission: float, commission_count: int):
         self.pay_per_commission = pay_per_commission
         self.commission_count = commission_count
 
-    def compute_pay(self) -> float:
-        return super().compute_pay() + +(
-            self.commission_count * self.pay_per_commission
-        )
+    def get_payment(self) -> float:
+        return self.pay_per_commission * self.commission_count
 
 
-class Freelancer(Employee):
-    """Paid by purely from commission"""
-
-    commission_rate: float = 0
-    commission_count: int = 0
-
-    def __init__(self, commission_rate: float = 0, commission_count: int = 0) -> None:
+class BaseWithBonusCommissionCalculator(BaseCommissionCalculator):
+    def __init__(self, pay_per_commission: float, commission_count: int, bonus: float):
+        self.pay_per_commission = pay_per_commission
         self.commission_count = commission_count
-        self.commission_rate = commission_rate
-
-    def compute_pay(self) -> float:
-        return self.commission_rate * self.commission_count
-
-
-class FreeLancerWithBonus(Freelancer):
-    bonus: float = 0
-
-    def __init__(
-        self, commission_rate: float = 0, commission_count: int = 0, bonus: float = 0
-    ) -> None:
-        self.commission_count = commission_count
-        self.commission_rate = commission_rate
         self.bonus = bonus
 
+    def get_payment(self) -> float:
+        return super().get_payment() + self.bonus
+
+
+class Employee:
+    payment_calculator: PaymentCalculator
+    commission_calculator: Optional[CommissionCalculator] = None
+
+    def __init__(
+        self,
+        payment_calculator: PaymentCalculator,
+        commission_calculator: Optional[CommissionCalculator],
+    ):
+        self.payment_calculator = payment_calculator
+        self.commission_calculator = commission_calculator
+
     def compute_pay(self) -> float:
-        return super().compute_pay() + self.bonus
+        base_pay = self.payment_calculator.get_payment()
+        if self.commission_calculator is not None:
+            base_pay += self.commission_calculator.get_payment()
+        return base_pay
 
 
 def main() -> None:
-    hr_employee_no_commission = HourlyEmployee(pay_rate=100, hours_worked=10)
+    hr_employee_no_commission = Employee(
+        payment_calculator=HourlyPaymentCalculator(hourly_salary=100, hours_worked=10),
+        commission_calculator=None,
+    )
 
     # EXPECTED: 1000
     print(hr_employee_no_commission.compute_pay())
 
-    hr_employee_w_commission = HourlyCommissionedEmployee(
-        pay_rate=100, hours_worked=9, pay_per_commission=100, commission_count=1
+    hr_employee_w_commission = Employee(
+        HourlyPaymentCalculator(hourly_salary=100, hours_worked=9),
+        commission_calculator=BaseCommissionCalculator(
+            pay_per_commission=100, commission_count=1
+        ),
     )
     # EXPECTED: 1000
     print(hr_employee_w_commission.compute_pay())
 
-    sal_employee_no_commission = SalaryEmployee(monthly_salary=1000, months_worked=1)
+    sal_employee_no_commission = Employee(
+        payment_calculator=SalaryPaymentCalculator(
+            monthly_salary=1000, months_worked=1
+        ),
+        commission_calculator=None,
+    )
     # EXPECTED: 1000
     print(sal_employee_no_commission.compute_pay())
 
-    sal_employee_w_commission = SalaryCommissionedEmployee(
-        monthly_salary=900, months_worked=1, commission_count=1, pay_per_commission=100
+    sal_employee_w_commission = Employee(
+        payment_calculator=SalaryPaymentCalculator(monthly_salary=900, months_worked=1),
+        commission_calculator=BaseCommissionCalculator(100, 1),
     )
     # EXPECTED: 1000
     print(sal_employee_w_commission.compute_pay())
 
-    fr_employee_no_bonus = Freelancer(commission_rate=1000, commission_count=1)
+    fr_employee_no_bonus = Employee(
+        payment_calculator=NoPaymentCalculator(),
+        commission_calculator=BaseCommissionCalculator(
+            pay_per_commission=1000, commission_count=1
+        ),
+    )
     # EXPECTED: 100
     print(fr_employee_no_bonus.compute_pay())
 
-    fr_employee_w_bonus = FreeLancerWithBonus(
-        commission_rate=900, commission_count=1, bonus=100
+    fr_employee_w_bonus = Employee(
+        payment_calculator=NoPaymentCalculator(),
+        commission_calculator=BaseWithBonusCommissionCalculator(
+            pay_per_commission=900, commission_count=1, bonus=100
+        ),
     )
 
     # EXPECTED: 1000
